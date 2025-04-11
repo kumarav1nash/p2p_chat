@@ -5,6 +5,7 @@ import sys
 import logging
 import argparse
 import threading
+import socket
 from typing import Optional
 from .crypto import CryptoManager
 from .network import NetworkManager
@@ -26,6 +27,19 @@ class ChatCLI:
         self.input_thread = None
         self.message_lock = threading.Lock()
         self.display_lock = threading.Lock()
+
+    def get_local_ip(self) -> str:
+        """Get the local IP address of the machine."""
+        try:
+            # Create a socket to get the local IP
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            # Doesn't actually connect, just gets the local IP
+            s.connect(("8.8.8.8", 80))
+            local_ip = s.getsockname()[0]
+            s.close()
+            return local_ip
+        except Exception:
+            return "127.0.0.1"  # Fallback to localhost
 
     def display_message(self, sender: str, message: str) -> None:
         """Display a message in a thread-safe way."""
@@ -96,7 +110,9 @@ class ChatCLI:
                 print(f"Connecting to {connect_to}:{port}...")
                 self.network.connect_to_peer(connect_to, port)
             else:
-                print(f"Starting server on port {port}...")
+                local_ip = self.get_local_ip()
+                print(f"Starting server on {local_ip}:{port}...")
+                print(f"Other users can connect using: python -m src.cli --connect {local_ip} --port {port}")
                 self.network.start_server(port=port)
 
             print("\nChat started. Type your messages (Ctrl+C to quit):")
