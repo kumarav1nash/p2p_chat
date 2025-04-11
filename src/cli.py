@@ -6,6 +6,7 @@ import logging
 import argparse
 import threading
 import socket
+import uuid
 from typing import Optional
 from .crypto import CryptoManager
 from .network import NetworkManager
@@ -19,7 +20,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 class ChatCLI:
-    def __init__(self):
+    def __init__(self, name: Optional[str] = None):
         self.crypto = CryptoManager()
         self.network = NetworkManager(self.crypto)
         self.storage = DatabaseManager()
@@ -27,6 +28,8 @@ class ChatCLI:
         self.input_thread = None
         self.message_lock = threading.Lock()
         self.display_lock = threading.Lock()
+        self.name = name or f"User_{str(uuid.uuid4())[:8]}"
+        self.peer_name = "Peer"
 
     def get_local_ip(self) -> str:
         """Get the local IP address of the machine."""
@@ -47,14 +50,14 @@ class ChatCLI:
             # Print the message with the sender prefix
             print(f"\n{sender}: {message}")
             # Print the prompt for the next message
-            print("You: ", end="", flush=True)
+            print(f"{self.name}: ", end="", flush=True)
 
     def handle_message(self, sender: str, message: str) -> None:
         """Handle incoming messages from the peer."""
         try:
             with self.message_lock:
                 # Only save and display messages from the peer
-                if sender == "Peer":
+                if sender == self.peer_name:
                     self.storage.save_message(sender, message)
                     self.display_message(sender, message)
         except Exception as e:
@@ -87,13 +90,13 @@ class ChatCLI:
                         # Send the message to the peer
                         self.network.send_message(message)
                         # Save our own message
-                        self.storage.save_message("You", message)
+                        self.storage.save_message(self.name, message)
                         # Display our message
-                        self.display_message("You", message)
+                        self.display_message(self.name, message)
             except Exception as e:
                 if self.running:
                     logger.error(f"Error sending message: {e}")
-                    print("You: ", end="", flush=True)
+                    print(f"{self.name}: ", end="", flush=True)
 
     def start_chat(self, connect_to: Optional[str] = None, port: int = 65432) -> None:
         """Start the chat application."""
@@ -107,16 +110,16 @@ class ChatCLI:
             self.input_thread.start()
 
             if connect_to:
-                print(f"Connecting to {connect_to}:{port}...")
-                self.network.connect_to_peer(connect_to, port)
+                print(f"Connecting to {connect_to}:{port} as {self.name}...")
+                self.network.connect_to_peer(connect_to, port, self.name)
             else:
                 local_ip = self.get_local_ip()
-                print(f"Starting server on {local_ip}:{port}...")
-                print(f"Other users can connect using: python -m src.cli --connect {local_ip} --port {port}")
-                self.network.start_server(port=port)
+                print(f"Starting server on {local_ip}:{port} as {self.name}...")
+                print(f"Other users can connect using: python -m src.cli --connect {local_ip} --port {port} --name <your_name>")
+                self.network.start_server(port=port, name=self.name)
 
             print("\nChat started. Type your messages (Ctrl+C to quit):")
-            print("You: ", end="", flush=True)
+            print(f"{self.name}: ", end="", flush=True)
 
             # Wait for the network thread to finish
             if self.network.receive_thread:
@@ -138,6 +141,7 @@ def main():
     parser = argparse.ArgumentParser(description="P2P Encrypted Chat")
     parser.add_argument("--connect", help="IP address of peer to connect to")
     parser.add_argument("--port", type=int, default=65432, help="Port number")
+    parser.add_argument("--name", help="Your chat name/alias")
     parser.add_argument("--history", action="store_true", help="Show chat history")
     parser.add_argument("--history-limit", type=int, help="Limit number of history entries to show")
     parser.add_argument("--clear-history", action="store_true", help="Clear chat history")
@@ -148,7 +152,7 @@ def main():
         logging.getLogger().setLevel(logging.DEBUG)
 
     try:
-        cli = ChatCLI()
+        cli = ChatCLI(name=args.name)
 
         if args.clear_history:
             cli.storage.clear_history()
