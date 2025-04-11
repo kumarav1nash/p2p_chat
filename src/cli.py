@@ -55,9 +55,9 @@ class ChatCLI:
         """Display a message in a thread-safe way."""
         with self.display_lock:
             # Print the message with the sender prefix
-            print(f"\n{sender}: {message}")
+            print(f"\r{sender}: {message}", end="", flush=True)
             # Print the prompt for the next message
-            print(f"{self.name}: ", end="", flush=True)
+            print(f"\n{self.name}: ", end="", flush=True)
 
     def handle_message(self, sender: str, message: str) -> None:
         """Handle incoming messages from the peer."""
