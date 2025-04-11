@@ -2,6 +2,7 @@
 import sqlite3
 import logging
 import base64
+import os
 from typing import List, Tuple, Optional
 from cryptography.fernet import Fernet
 from .crypto import CryptoManager
@@ -18,15 +19,16 @@ class DatabaseManager:
         """Initialize the database manager with optional crypto manager."""
         self.conn = sqlite3.connect('chat_history.db', check_same_thread=False)
         self.crypto = crypto
-        # Generate a separate key for database encryption
-        self.db_key = Fernet.generate_key()
+        self.create_tables()
+        # Load or generate encryption key
+        self.db_key = self._load_or_generate_key()
         self.db_cipher = Fernet(self.db_key)
-        self.create_table()
 
-    def create_table(self) -> None:
-        """Create the messages table if it doesn't exist."""
+    def create_tables(self) -> None:
+        """Create the required tables if they don't exist."""
         try:
             cursor = self.conn.cursor()
+            # Create messages table
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS messages (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -36,9 +38,40 @@ class DatabaseManager:
                     is_encrypted BOOLEAN DEFAULT 1
                 )
             ''')
+            # Create encryption key table
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS encryption_key (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    key_data BLOB NOT NULL
+                )
+            ''')
             self.conn.commit()
         except Exception as e:
-            logger.error(f"Failed to create table: {e}")
+            logger.error(f"Failed to create tables: {e}")
+            raise
+
+    def _load_or_generate_key(self) -> bytes:
+        """Load existing key from database or generate a new one."""
+        try:
+            cursor = self.conn.cursor()
+            # Try to get existing key
+            cursor.execute('SELECT key_data FROM encryption_key WHERE id = 1')
+            result = cursor.fetchone()
+            
+            if result:
+                return result[0]
+            else:
+                # Generate new key
+                key = Fernet.generate_key()
+                # Save the key in database
+                cursor.execute(
+                    'INSERT INTO encryption_key (id, key_data) VALUES (1, ?)',
+                    (key,)
+                )
+                self.conn.commit()
+                return key
+        except Exception as e:
+            logger.error(f"Failed to load/generate key: {e}")
             raise
 
     def save_message(self, sender: str, message: str, encrypt: bool = True) -> None:
@@ -76,7 +109,23 @@ class DatabaseManager:
                 cursor.execute(
                     'SELECT timestamp, sender, message, is_encrypted FROM messages ORDER BY timestamp DESC'
                 )
-            return cursor.fetchall()
+            
+            # Decrypt messages before returning
+            messages = []
+            for row in cursor.fetchall():
+                timestamp, sender, message, is_encrypted = row
+                if is_encrypted:
+                    try:
+                        # Decrypt the message
+                        decrypted_message = self.db_cipher.decrypt(message.encode()).decode()
+                        messages.append((timestamp, sender, decrypted_message, is_encrypted))
+                    except Exception as e:
+                        logger.error(f"Failed to decrypt message: {e}")
+                        messages.append((timestamp, sender, "[Decryption Failed]", is_encrypted))
+                else:
+                    messages.append(row)
+            
+            return messages
         except Exception as e:
             logger.error(f"Failed to retrieve history: {e}")
             raise
