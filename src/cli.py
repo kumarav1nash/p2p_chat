@@ -29,7 +29,7 @@ class ChatCLI:
         self.message_lock = threading.Lock()
         self.display_lock = threading.Lock()
         self.name = name or f"User_{str(uuid.uuid4())[:8]}"
-        self.peer_name = "Peer"
+        self.peer_name = None
 
     def get_local_ip(self) -> str:
         """Get the local IP address of the machine."""
@@ -56,7 +56,11 @@ class ChatCLI:
         """Handle incoming messages from the peer."""
         try:
             with self.message_lock:
-                # Only save and display messages from the peer
+                # Update peer name if not set
+                if self.peer_name is None:
+                    self.peer_name = sender
+                
+                # Save and display messages from the peer
                 if sender == self.peer_name:
                     self.storage.save_message(sender, message)
                     self.display_message(sender, message)
