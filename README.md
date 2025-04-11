@@ -32,7 +32,7 @@ A secure, peer-to-peer chat application with end-to-end encryption and persisten
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/p2p_chat.git
+git clone https://github.com/kumarav1nash/p2p_chat.git
 cd p2p_chat
 ```
 
@@ -135,6 +135,10 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Author
+
+Created by [kumarav1nash](https://github.com/kumarav1nash)
 
 ## Acknowledgments
 
