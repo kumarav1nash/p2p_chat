@@ -44,7 +44,14 @@ class ChatCLI:
         except Exception:
             return "127.0.0.1"  # Fallback to localhost
 
-    def display_message(self, sender: str, message: str) -> None:
+    def display_outgoing_message(self, sender: str, message: str) -> None:
+        """Display a message in a thread-safe way."""
+        with self.display_lock:
+            # Print the message with the sender prefix
+            #print(f"\n{sender}: {message}")
+            # Print the prompt for the next message
+            print(f"{self.name}: ", end="", flush=True)
+    def display_incoming_message(self, sender: str, message: str) -> None:
         """Display a message in a thread-safe way."""
         with self.display_lock:
             # Print the message with the sender prefix
@@ -63,7 +70,7 @@ class ChatCLI:
                 # Save and display messages from the peer
                 if sender == self.peer_name:
                     self.storage.save_message(sender, message)
-                    self.display_message(sender, message)
+                    self.display_incoming_message(sender, message)
         except Exception as e:
             logger.error(f"Failed to handle message: {e}")
 
@@ -96,7 +103,7 @@ class ChatCLI:
                         # Save our own message
                         self.storage.save_message(self.name, message)
                         # Display our message
-                        self.display_message(self.name, message)
+                        self.display_outgoing_message(self.name, message)
             except Exception as e:
                 if self.running:
                     logger.error(f"Error sending message: {e}")
