@@ -19,6 +19,18 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# ANSI color codes
+class Colors:
+    HEADER = '\033[95m'
+    BLUE = '\033[94m'
+    CYAN = '\033[96m'
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    RED = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
+
 class ChatCLI:
     def __init__(self, name: Optional[str] = None):
         self.crypto = CryptoManager()
@@ -30,6 +42,9 @@ class ChatCLI:
         self.display_lock = threading.Lock()
         self.name = name or f"User_{str(uuid.uuid4())[:8]}"
         self.peer_name = None
+        # Assign colors to users
+        self.my_color = Colors.GREEN
+        self.peer_color = Colors.CYAN
 
     def get_local_ip(self) -> str:
         """Get the local IP address of the machine."""
@@ -50,14 +65,15 @@ class ChatCLI:
             # Print the message with the sender prefix
             #print(f"\n{sender}: {message}")
             # Print the prompt for the next message
-            print(f"{self.name}: ", end="", flush=True)
+            print(f"{self.my_color}{self.name}{Colors.ENDC}: ", end="", flush=True)
+
     def display_incoming_message(self, sender: str, message: str) -> None:
         """Display a message in a thread-safe way."""
         with self.display_lock:
             # Print the message with the sender prefix
-            print(f"\r{sender}: {message}", end="", flush=True)
+            print(f"\r{self.peer_color}{sender}{Colors.ENDC}: {message}", end="", flush=True)
             # Print the prompt for the next message
-            print(f"\n{self.name}: ", end="", flush=True)
+            print(f"\n{self.my_color}{self.name}{Colors.ENDC}: ", end="", flush=True)
 
     def handle_message(self, sender: str, message: str) -> None:
         """Handle incoming messages from the peer."""
@@ -86,7 +102,8 @@ class ChatCLI:
             print("-" * 50)
             for timestamp, sender, message, is_encrypted in messages:
                 encrypted_status = "[Encrypted]" if is_encrypted else ""
-                print(f"[{timestamp}] {sender}: {message} {encrypted_status}")
+                color = self.my_color if sender == self.name else self.peer_color
+                print(f"[{timestamp}] {color}{sender}{Colors.ENDC}: {message} {encrypted_status}")
             print("-" * 50)
         except Exception as e:
             logger.error(f"Failed to show history: {e}")
@@ -107,7 +124,7 @@ class ChatCLI:
             except Exception as e:
                 if self.running:
                     logger.error(f"Error sending message: {e}")
-                    print(f"{self.name}: ", end="", flush=True)
+                    print(f"{self.my_color}{self.name}{Colors.ENDC}: ", end="", flush=True)
 
     def start_chat(self, connect_to: Optional[str] = None, port: int = 65432) -> None:
         """Start the chat application."""
@@ -121,16 +138,16 @@ class ChatCLI:
             self.input_thread.start()
 
             if connect_to:
-                print(f"Connecting to {connect_to}:{port} as {self.name}...")
+                print(f"Connecting to {connect_to}:{port} as {self.my_color}{self.name}{Colors.ENDC}...")
                 self.network.connect_to_peer(connect_to, port, self.name)
             else:
                 local_ip = self.get_local_ip()
-                print(f"Starting server on {local_ip}:{port} as {self.name}...")
+                print(f"Starting server on {local_ip}:{port} as {self.my_color}{self.name}{Colors.ENDC}...")
                 print(f"Other users can connect using: python -m src.cli --connect {local_ip} --port {port} --name <your_name>")
                 self.network.start_server(port=port, name=self.name)
 
             print("\nChat started. Type your messages (Ctrl+C to quit):")
-            print(f"{self.name}: ", end="", flush=True)
+            print(f"{self.my_color}{self.name}{Colors.ENDC}: ", end="", flush=True)
 
             # Wait for the network thread to finish
             if self.network.receive_thread:
