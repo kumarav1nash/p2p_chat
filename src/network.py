@@ -28,6 +28,7 @@ class NetworkManager:
         self.is_server = False
         self.name = None
         self.peer_name = None
+        self.peer_public_key = None
 
     def set_message_callback(self, callback: Callable[[str, str], None]) -> None:
         """Set the callback function for handling incoming messages."""
@@ -46,6 +47,9 @@ class NetworkManager:
             # Accept client connection
             self.client_socket, addr = self.server_socket.accept()
             logger.info(f"Client connected from {addr}")
+
+            # Exchange public keys
+            self._exchange_keys()
 
             # Exchange names with the client
             self._exchange_names()
@@ -70,6 +74,9 @@ class NetworkManager:
             self.client_socket.connect((host, port))
             logger.info(f"Connected to {host}:{port}")
 
+            # Exchange public keys
+            self._exchange_keys()
+
             # Exchange names with the server
             self._exchange_names()
 
@@ -82,6 +89,24 @@ class NetworkManager:
         except Exception as e:
             logger.error(f"Connection error: {e}")
             self.cleanup()
+            raise
+
+    def _exchange_keys(self) -> None:
+        """Exchange public keys with the peer."""
+        try:
+            # Send our public key
+            local_pubkey = self.crypto.get_public_key_bytes()
+            self.client_socket.sendall(local_pubkey)
+
+            # Receive peer's public key
+            peer_pubkey = self.client_socket.recv(1024)
+            self.peer_public_key = serialization.load_pem_public_key(
+                peer_pubkey,
+                backend=default_backend()
+            )
+            logger.info("Key exchange completed")
+        except Exception as e:
+            logger.error(f"Key exchange error: {e}")
             raise
 
     def _exchange_names(self) -> None:
@@ -108,10 +133,12 @@ class NetworkManager:
         """Send a message to the peer."""
         if not self.client_socket:
             raise Exception("Not connected to a peer")
+        if not self.peer_public_key:
+            raise Exception("Peer public key not available")
 
         try:
-            # Encrypt the message
-            encrypted_message = self.crypto.encrypt_message(message)
+            # Encrypt the message with the peer's public key
+            encrypted_message = self.crypto.encrypt_message(message, self.peer_public_key)
             self.client_socket.sendall(encrypted_message)
             logger.debug(f"Sent message: {message}")
         except Exception as e:
