@@ -53,7 +53,7 @@ pip install -r requirements.txt
 
 To start a chat server:
 ```bash
-python -m src.cli --server --name YourName
+python -m src.cli --name YourName
 ```
 
 ### Connecting to a Chat Server
@@ -65,7 +65,6 @@ python -m src.cli --connect <server_ip> --name YourName
 
 ### Command Line Arguments
 
-- `--server`: Start in server mode
 - `--connect <ip>`: Connect to a server at the specified IP
 - `--port <port>`: Specify the port number (default: 65432)
 - `--name <name>`: Set your chat alias
