@@ -35,7 +35,7 @@ class ChatCLI:
     def __init__(self, name: Optional[str] = None):
         self.crypto = CryptoManager()
         self.network = NetworkManager(self.crypto)
-        self.storage = DatabaseManager()
+        self.storage = DatabaseManager(self.crypto)  # Pass crypto manager to storage
         self.running = False
         self.input_thread = None
         self.message_lock = threading.Lock()
@@ -85,7 +85,7 @@ class ChatCLI:
                 
                 # Save and display messages from the peer
                 if sender == self.peer_name:
-                    self.storage.save_message(sender, message)
+                    self.storage.save_message(sender, message, encrypt=True)
                     self.display_incoming_message(sender, message)
         except Exception as e:
             logger.error(f"Failed to handle message: {e}")
@@ -103,7 +103,19 @@ class ChatCLI:
             for timestamp, sender, message, is_encrypted in messages:
                 encrypted_status = "[Encrypted]" if is_encrypted else ""
                 color = self.my_color if sender == self.name else self.peer_color
-                print(f"[{timestamp}] {color}{sender}{Colors.ENDC}: {message} {encrypted_status}")
+                try:
+                    # Try to decrypt the message if it's encrypted
+                    if is_encrypted:
+                        try:
+                            # The message is already decrypted by the storage manager
+                            pass
+                        except Exception as e:
+                            logger.error(f"Failed to decrypt message: {e}")
+                            message = "[Decryption Failed]"
+                    print(f"[{timestamp}] {color}{sender}{Colors.ENDC}: {message} {encrypted_status}")
+                except Exception as e:
+                    logger.error(f"Error displaying message: {e}")
+                    print(f"[{timestamp}] {color}{sender}{Colors.ENDC}: [Error displaying message] {encrypted_status}")
             print("-" * 50)
         except Exception as e:
             logger.error(f"Failed to show history: {e}")
@@ -118,7 +130,7 @@ class ChatCLI:
                         # Send the message to the peer
                         self.network.send_message(message)
                         # Save our own message
-                        self.storage.save_message(self.name, message)
+                        self.storage.save_message(self.name, message, encrypt=True)
                         # Display our message
                         self.display_outgoing_message(self.name, message)
             except Exception as e:
